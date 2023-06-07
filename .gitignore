@@ -12,4 +12,5 @@ Makefile.coq.conf
 *.o
 *.vo*
 .merlin
-META*
+
+/META

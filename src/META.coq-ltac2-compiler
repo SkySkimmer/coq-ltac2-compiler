@@ -1,0 +1,10 @@
+
+package "plugin" (
+  directory = "."
+  requires = "coq-core.plugins.ltac2"
+  archive(byte) = "ltac2_compiler.cma"
+  archive(native) = "ltac2_compiler.cmxa"
+  plugin(byte) = "ltac2_compiler.cma"
+  plugin(native) = "ltac2_compiler.cmxs"
+)
+directory = "."
