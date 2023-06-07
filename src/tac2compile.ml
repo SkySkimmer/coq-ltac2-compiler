@@ -10,6 +10,7 @@
 
 open Util
 open Names
+open Ltac2_plugin
 open Tac2expr
 open Pp
 
@@ -525,10 +526,11 @@ and tac_expr env e =
       let acc, e2 = nontac_expr env acc e2 in
       acc, Set (e1,i,e2)
 
-    | GTacExt (ids,tag,v) ->
+    | GTacExt (tag,v) ->
       let e = with_state env spill_ext (Glb (tag,v)) in
-      let ids = Id.Map.bind (fun id -> Id.Map.get id env.env.user_bindings) ids in
-      acc, Ext (ids, e)
+      (* NB: We will reconstruct the whole env even if no ids are actually used
+         Fixing this requires something like https://github.com/coq/coq/pull/17518 *)
+      acc, Ext (env.env.user_bindings, e)
   in
   { spilled_exprs = nonvals;
     head_expr = e; }
@@ -836,6 +838,7 @@ let prelude prefix =
   str "let current_module__ = " ++ rawstr prefix ++ fnl() ++ fnl() ++
   str "open Names" ++ fnl() ++
   str "open Ltac2_plugin" ++ fnl() ++
+  str "open Ltac2_compiler" ++ fnl() ++
   str "open Tac2ffi" ++ fnl() ++
   str "module PV = Proofview" ++ fnl() ++
   str "open PV.Notations" ++ fnl()
@@ -978,8 +981,11 @@ let include_dirs () =
   let open Boot.Env in
   let env = init () in
   (* engine for Proofview, kernel for Names *)
-  List.map (fun x -> Path.to_string (native_cmi env x))
-    [ "kernel"; "engine"; "plugins/ltac2" ]
+  let core = List.map (fun x -> Path.to_string (native_cmi env x))
+      [ "kernel"; "engine"; "plugins/ltac2" ]
+  in
+  let self = Findlib.package_directory "coq-ltac2-compiler" in
+  self :: core
 
 let call_compiler fml =
   let f = Filename.chop_extension fml in
@@ -1042,18 +1048,19 @@ let compile ~recursive knl =
   Pp.pp_with fch pp;
   close_out ch;
   let r = call_compiler file in
-  link_compiled kns exts r
+  let () = link_compiled kns exts r in
+  debug Pp.(fun () -> str "Compilation successful.")
 
 let perform_compile ?(recursive=true) qidl =
   let knl = qidl |> List.map (fun qid ->
       let kn =
         try Tac2env.locate_ltac qid
         with Not_found ->
-          CErrors.user_err ?loc:qid.CAst.loc Pp.(str "Unbound value " ++ pr_qualid qid)
+          CErrors.user_err ?loc:qid.CAst.loc Pp.(str "Unbound value " ++ Libnames.pr_qualid qid)
       in
       match kn with
       | TacConstant kn -> kn
       | TacAlias _ ->
-        CErrors.user_err ?loc:qid.CAst.loc Pp.(str "Not a definition " ++ pr_qualid qid))
+        CErrors.user_err ?loc:qid.CAst.loc Pp.(str "Not a definition " ++ Libnames.pr_qualid qid))
   in
-  Tac2compile.compile ~recursive knl
+  compile ~recursive knl

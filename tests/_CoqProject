@@ -1,0 +1,6 @@
+-Q ../src Ltac2Compiler
+-I ../src
+
+-R . Test
+
+tac2compile_test.v

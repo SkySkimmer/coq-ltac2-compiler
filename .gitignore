@@ -1,4 +1,6 @@
-Makefile.coq*
+Makefile.coq
+Makefile.coq.d
+Makefile.coq.conf
 
 /src/g_tac2compile.ml
 

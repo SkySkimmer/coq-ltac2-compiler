@@ -8,11 +8,11 @@
 (*         *     (see LICENSE file for the text of the license)         *)
 (************************************************************************)
 
-val perform_compile : ?recursive:bool -> qualid list -> unit
+val perform_compile : ?recursive:bool -> Libnames.qualid list -> unit
 (** Default [recursive:true] *)
 
 (** for communication with dynlinked code *)
 
 val spilled_kns : Names.KerName.t array ref
 
-val spilled_exts : Tac2dyn.Arg.glb array ref
+val spilled_exts : Ltac2_plugin.Tac2dyn.Arg.glb array ref

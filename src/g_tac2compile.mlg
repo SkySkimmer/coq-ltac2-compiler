@@ -12,14 +12,12 @@ DECLARE PLUGIN "coq-ltac2-compiler.plugin"
 
 {
 
-open Util
-open Names
-open Pcoq
+open Stdarg
 
 let recursive_att = Attributes.bool_attribute ~name:"recursive"
 }
 
 VERNAC COMMAND EXTEND Ltac2Compile CLASSIFIED AS SIDEFF
 | #[ recursive = recursive_att ] [ "Ltac2" "Compile" reference_list(n) ] ->
-  { Tac2entries.perform_compile ?recursive n }
+  { Tac2compile.perform_compile ?recursive n }
 END

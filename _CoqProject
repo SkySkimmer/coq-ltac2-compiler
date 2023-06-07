@@ -1,4 +1,4 @@
--generate-meta-for-package coq-ltac2-compiler
+src/META.coq-ltac2-compiler
 -Q src Ltac2Compiler
 -I src
 
