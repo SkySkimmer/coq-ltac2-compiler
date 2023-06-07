@@ -1,0 +1,13 @@
+Makefile.coq*
+
+/src/g_tac2compile.ml
+
+*.a
+*.aux
+*.cm*
+*.d
+*.glob
+*.o
+*.vo*
+.merlin
+META*

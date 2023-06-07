@@ -1,0 +1,8 @@
+(library
+ (name ltac2_compiler)
+ (public_name coq.ltac2-compiler)
+ (synopsis "Ltac2 compiler using OCaml")
+ (libraries coq-core.plugins.ltac2)
+ (flags :standard -w -40))
+
+(coq.pp (modules g_tac2compile))

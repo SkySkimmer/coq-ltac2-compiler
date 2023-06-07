@@ -1,0 +1,25 @@
+(************************************************************************)
+(*         *   The Coq Proof Assistant / The Coq Development Team       *)
+(*  v      *         Copyright INRIA, CNRS and contributors             *)
+(* <O___,, * (see version control and CREDITS file for authors & dates) *)
+(*   \VV/  **************************************************************)
+(*    //   *    This file is distributed under the terms of the         *)
+(*         *     GNU Lesser General Public License Version 2.1          *)
+(*         *     (see LICENSE file for the text of the license)         *)
+(************************************************************************)
+
+DECLARE PLUGIN "coq-ltac2-compiler.plugin"
+
+{
+
+open Util
+open Names
+open Pcoq
+
+let recursive_att = Attributes.bool_attribute ~name:"recursive"
+}
+
+VERNAC COMMAND EXTEND Ltac2Compile CLASSIFIED AS SIDEFF
+| #[ recursive = recursive_att ] [ "Ltac2" "Compile" reference_list(n) ] ->
+  { Tac2entries.perform_compile ?recursive n }
+END

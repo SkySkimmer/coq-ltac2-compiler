@@ -1,0 +1,9 @@
+-generate-meta-for-package coq-ltac2-compiler
+-Q src Ltac2Compiler
+-I src
+
+src/Ltac2Compiler.v
+src/g_tac2compile.mlg
+src/tac2compile.ml
+src/tac2compile.mli
+src/ltac2_compiler.mlpack
