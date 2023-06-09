@@ -1,7 +1,7 @@
 Require Import Ltac2.Ltac2 Ltac2Compiler.Ltac2Compiler.
 Import Ltac2.Printf.
 
-Set Debug "tac2compile,backtrace".
+(* Set Debug "tac2compile,backtrace". *)
 
 Module ThunkSet.
   (* checks that "r.(contents) := 1" gets thunked appropriately
