@@ -909,8 +909,8 @@ let get_expr_deps e =
   in
   aux KNset.empty e
 
-(* Produce a list of kernames in reverse dependency order: the first
-   depends on nothing, the second may depend on the first, etc.
+(* Produce a list of kernames in dependency order: the last
+   depends on nothing, the penultimate may depend on the last, etc.
 
    This function adds [kn] and all its dependencies to the list. *)
 let rec get_dependencies ((visited, skipped_mut, knl) as acc) kn =
@@ -923,9 +923,11 @@ let rec get_dependencies ((visited, skipped_mut, knl) as acc) kn =
       else skipped_mut
     in
     let kndeps = get_expr_deps data.gdata_expr in
-    KNset.fold (fun kn acc -> get_dependencies acc kn)
-      kndeps
-      (KNset.add kn visited, skipped_mut, kn :: knl)
+    let visited, skipped_mut, knl = KNset.fold (fun kn acc -> get_dependencies acc kn)
+        kndeps
+        (KNset.add kn visited, skipped_mut, knl)
+    in
+    (visited, skipped_mut, kn :: knl)
 
 let warn_skipped_mut = CWarnings.create ~name:"tac2compile-skipped-mutable" ~category:CWarnings.CoreCategories.ltac2
     (fun skipped_mut ->
@@ -933,13 +935,9 @@ let warn_skipped_mut = CWarnings.create ~name:"tac2compile-skipped-mutable" ~cat
        prlist_with_sep spc Tac2print.pr_tacref (KNset.elements skipped_mut))
 
 let get_recursive_kns knl =
-  let get_one_kn (_, _, knl as acc) kn =
-    let visited, skipped_mut, knl' = get_dependencies acc kn in
-    visited, skipped_mut, knl @ knl'
-  in
-  let _, skipped_mut, knl = List.fold_left get_one_kn (KNset.empty, KNset.empty, []) knl in
+  let _, skipped_mut, knl = List.fold_left get_dependencies (KNset.empty, KNset.empty, []) knl in
   let () = if not (KNset.is_empty skipped_mut) then warn_skipped_mut skipped_mut in
-  knl
+  List.rev knl
 
 let my_temp_dir = ref None
 
