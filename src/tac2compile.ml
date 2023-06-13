@@ -94,6 +94,9 @@ type state =
   ; spill_ext_cnt : int
 
   ; local_kns : (string * binding_info) KNmap.t
+
+  ; is_recursive : bool
+  (* only used for sanity check *)
   }
 
 type env =
@@ -101,12 +104,13 @@ type env =
   (* only contains real user names, no temporaries *)
   }
 
-let empty_state = {
+let empty_state is_recursive = {
   spill_kns = KNmap.empty;
   spill_kn_cnt =0;
   spill_ext = [];
   spill_ext_cnt = 0;
   local_kns = KNmap.empty;
+  is_recursive;
 }
 
 let empty_env = {
@@ -344,6 +348,7 @@ let is_mutable_proj typ p =
 let reference state x =
   match KNmap.find_opt x state.local_kns with
   | None ->
+    assert (not state.is_recursive || (Tac2env.interp_global x).gdata_mutable);
     let state, (_, x) = spill_kn state x in
     state, GlobalKn x
   | Some info -> state, LocalKn info
@@ -866,8 +871,8 @@ let pp_spilled_exts env =
   let exts = Array.map fst exts in
   exts, pp
 
-let pp_code prefix knl =
-  let state = empty_state in
+let pp_code recursive prefix knl =
+  let state = empty_state recursive in
   let state, csts = List.fold_left_map translate_one_constant state knl in
   let kns, ppkns = pp_spilled_kns state in
   let exts, ppexts = pp_spilled_exts state in
@@ -1045,7 +1050,7 @@ let compile ~recursive knl =
     else knl
   in
   let file, ch, prefix = get_ml_filename () in
-  let kns, exts, pp = pp_code prefix knl in
+  let kns, exts, pp = pp_code recursive prefix knl in
   let fch = Format.formatter_of_out_channel ch in
   Pp.pp_with fch pp;
   close_out ch;
