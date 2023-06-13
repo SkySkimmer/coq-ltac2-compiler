@@ -933,7 +933,11 @@ let warn_skipped_mut = CWarnings.create ~name:"tac2compile-skipped-mutable" ~cat
        prlist_with_sep spc Tac2print.pr_tacref (KNset.elements skipped_mut))
 
 let get_recursive_kns knl =
-  let _, skipped_mut, knl = List.fold_left get_dependencies (KNset.empty, KNset.empty, []) knl in
+  let get_one_kn (_, _, knl as acc) kn =
+    let visited, skipped_mut, knl' = get_dependencies acc kn in
+    visited, skipped_mut, knl @ knl'
+  in
+  let _, skipped_mut, knl = List.fold_left get_one_kn (KNset.empty, KNset.empty, []) knl in
   let () = if not (KNset.is_empty skipped_mut) then warn_skipped_mut skipped_mut in
   knl
 
