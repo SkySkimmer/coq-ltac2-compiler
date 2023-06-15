@@ -382,6 +382,10 @@ let is_pure_ctor = function
   | Other kn -> Tac2intern.is_pure_constructor kn
   | Tuple _ -> true
 
+let precompiled_prim ml =
+  if ml.mltac_plugin <> "coq-core.plugins.ltac2" then None
+  else CString.Map.find_opt ml.mltac_tactic Tac2compiledPrim.registered
+
 let rec nontac_expr env ((cnt, nonvals) as acc) e = match e with
   | GTacAtm a -> acc, Atm a
   | GTacVar x -> acc, Var (x, Id.Map.find_opt x env.env.user_bindings)
@@ -405,7 +409,12 @@ let rec nontac_expr env ((cnt, nonvals) as acc) e = match e with
     let acc, sube = nontac_expr env acc sube in
     acc, PrjV (sube, i)
 
-  | GTacPrm ml -> acc, Prim ml
+  | GTacPrm ml -> begin match precompiled_prim ml with
+      | None -> acc, Prim ml
+      | Some arity ->
+        let info = if arity = 0 then Valexpr else Function {arity} in
+        acc, Ref (LocalKn ("Tac2compiledPrim."^ml.mltac_tactic, info))
+    end
 
   | GTacApp _ | GTacLet _ | GTacCse _
   | GTacPrj _ | GTacSet _ | GTacWth _ | GTacFullMatch _
