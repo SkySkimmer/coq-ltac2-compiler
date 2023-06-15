@@ -4,8 +4,6 @@ src/META.coq-ltac2-compiler
 
 src/Ltac2Compiler.v
 src/g_tac2compile.mlg
-src/tac2compiledPrim.ml
-src/tac2compiledPrim.mli
 src/tac2compile.ml
 src/tac2compile.mli
 src/ltac2_compiler.mlpack
