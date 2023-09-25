@@ -658,8 +658,8 @@ let pp_valexpr_of_bound pp = function
 
 (* produce a ocaml term of type valexpr *)
 let rec pp_nontac_expr = function
-  | Atm (AtmInt i) | Ctor (i, []) -> str "(ValInt " ++ int i ++ str")"
-  | Atm (AtmStr s) -> str "(ValBlk (Bytes.of_string " ++ rawstr s ++ str"))"
+  | Atm (AtmInt i) | Ctor (i, []) -> str "(ValInt " ++ (if i >= 0 then int i else surround (int i)) ++ str")"
+  | Atm (AtmStr s) -> str "(ValStr (Bytes.of_string " ++ rawstr s ++ str"))"
   | Var (x, info) -> pp_var x info
   | Ref (GlobalKn kn) -> surround (str "Tac2interp.eval_global" ++ spc() ++ SpilledKn.print kn)
   | Ref (LocalKn (name, info)) -> pp_valexpr_of_bound (str name) info
