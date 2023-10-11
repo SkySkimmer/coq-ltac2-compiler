@@ -996,7 +996,7 @@ let rec get_dependencies ((visited, skipped_mut, knl) as acc) kn =
 let warn_skipped_mut = CWarnings.create ~name:"tac2compile-skipped-mutable" ~category:CWarnings.CoreCategories.ltac2
     (fun skipped_mut ->
        str "Skipped compilation of mutable definitions" ++ spc() ++
-       prlist_with_sep spc Tac2print.pr_tacref (KNset.elements skipped_mut))
+       prlist_with_sep spc (Tac2print.pr_tacref Id.Set.empty) (KNset.elements skipped_mut))
 
 let get_recursive_kns knl =
   let _, skipped_mut, knl = List.fold_left get_dependencies (KNset.empty, KNset.empty, []) knl in
@@ -1101,7 +1101,7 @@ let compile ~recursive knl =
       (* Error if explicitly asked to compile a mutable, warn if recursively *)
       if (Tac2env.interp_global kn).gdata_mutable then
         CErrors.user_err
-          Pp.(str "Not allowed to compile mutable " ++ Tac2print.pr_tacref kn ++ str "."))
+          Pp.(str "Not allowed to compile mutable " ++ Tac2print.pr_tacref Id.Set.empty kn ++ str "."))
       knl
   in
   let knl =
