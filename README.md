@@ -110,3 +110,5 @@ matched on before there is a noticeable impact).
 
 - JIT evaluator (instead of using the interpreter, compile the given
   expression and run the result)?
+  Bench https://gitlab.com/SkySkimmer/coq/-/jobs/5159008108 was not very promising,
+  consider again once ahead of time compilation is done.
