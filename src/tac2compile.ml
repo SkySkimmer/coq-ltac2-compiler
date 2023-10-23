@@ -63,6 +63,18 @@ let rawstr s = quote (str (String.escaped s))
    eg "Tac2ffi.mk_closure_val" etc
 *)
 
+let keywords =
+  List.fold_right (fun s -> Id.Set.add (Id.of_string s))
+  [ "and"; "as"; "assert"; "begin"; "class"; "constraint"; "do";
+    "done"; "downto"; "else"; "end"; "exception"; "external"; "false";
+    "for"; "fun"; "function"; "functor"; "if"; "in"; "include";
+    "inherit"; "initializer"; "lazy"; "let"; "match"; "method";
+    "module"; "mutable"; "new"; "nonrec"; "object"; "of"; "open"; "or";
+    "parser"; "private"; "rec"; "sig"; "struct"; "then"; "to"; "true";
+    "try"; "type"; "val"; "virtual"; "when"; "while"; "with"; "mod";
+    "land"; "lor"; "lxor"; "lsl"; "lsr"; "asr" ; "unit" ; "_" ; "__" ]
+  Id.Set.empty
+
 let temporary cnt = cnt+1, Id.of_string ("x"^string_of_int cnt^"__")
 
 type binding_info =
@@ -100,8 +112,10 @@ type state =
   }
 
 type env =
-  { user_bindings : binding_info Id.Map.t
-  (* only contains real user names, no temporaries *)
+  { user_bindings : (Id.t * binding_info) Id.Map.t
+  (* only contains real user names, no temporaries.
+     maps from the source name to the possibly renamed name *)
+  ; rev_user_bindings : Id.t Id.Map.t
   }
 
 let empty_state is_recursive = {
@@ -115,17 +129,39 @@ let empty_state is_recursive = {
 
 let empty_env = {
   user_bindings = Id.Map.empty;
+  rev_user_bindings = Id.Map.empty;
 }
+
+let push_user_id na info env =
+  let na' = match Id.Map.find_opt na env.user_bindings with
+    | Some (na',_) ->
+      (* This binding is shadowing a previus binding  *)
+      na'
+    | None ->
+      let bad id =
+        String.is_suffix "__" (Id.to_string id)
+        || Id.Set.mem id keywords
+        || Id.Map.mem id env.rev_user_bindings
+      in
+      (* even if mangle names is on we avoid mangling the ones we don't rename *)
+      let na' = if bad na then Namegen.next_ident_away_from na bad else na in
+      na'
+  in
+  let env =
+    { user_bindings = Id.Map.add na (na',info) env.user_bindings
+    ; rev_user_bindings = Id.Map.add na' na env.rev_user_bindings }
+  in
+  env, na'
 
 let push_user_name na info env =
   match na with
-  | Anonymous -> env
+  | Anonymous -> env, Anonymous
   | Name na ->
-    assert (not (String.is_suffix "__" (Id.to_string na)));
-    { user_bindings = Id.Map.add na info env.user_bindings }
+    let env, na' = push_user_id na info env in
+    env, Name na'
 
 (* currently used with same info for all names in the list *)
-let push_user_names nas info env = List.fold_left (fun env na -> push_user_name na info env) env nas
+let push_user_names nas info env = CList.fold_left_map (fun env na -> push_user_name na info env) env nas
 
 let push_local_kn kn v env = { env with local_kns = KNmap.add kn v env.local_kns }
 
@@ -220,7 +256,7 @@ and tac_expr_head =
   | CtorMut of int * nontac_expr list (* mutable constructor *)
   | PrjMut of nontac_expr * int (* mutable projection *)
   | Set of nontac_expr * int * nontac_expr
-  | Ext of binding_info Id.Map.t * SpilledExt.t
+  | Ext of (Id.t * binding_info) Id.Map.t * SpilledExt.t
 
 (** spilled_exprs >>= fun ids -> head_expr *)
 and tac_expr = {
@@ -243,12 +279,16 @@ let pattern_conjunction pats =
   let result = List.fold_left and_one_pattern ([[], trivial_when]) pats in
   List.map (on_fst List.rev) result
 
-let rec pattern_of_glb_pat (state, cnt as acc) = function
-  | GPatVar x -> acc, trivial_when_pat (PatVar x)
+let rec pattern_of_glb_pat env (state, cnt as acc) = function
+  | GPatVar Anonymous -> acc, trivial_when_pat (PatVar Anonymous)
+  | GPatVar (Name x) ->
+    let x = fst @@ Id.Map.get x env.user_bindings in
+    acc, trivial_when_pat (PatVar (Name x))
   | GPatAtm (AtmInt i) -> acc, trivial_when_pat (PatInt i)
   | GPatRef ({ cindx = Closed i }, []) -> acc, trivial_when_pat (PatInt i)
   | GPatAs (pat, x) ->
-    let acc, pat = pattern_of_glb_pat acc pat in
+    let x = fst @@ Id.Map.get x env.user_bindings in
+    let acc, pat = pattern_of_glb_pat env acc pat in
     acc, List.map (fun (pat, cls) -> PatAs (pat, x), cls) pat
 
   | GPatAtm (AtmStr s) ->
@@ -258,13 +298,13 @@ let rec pattern_of_glb_pat (state, cnt as acc) = function
   | GPatRef ({ cindx = Open kn }, pats) ->
     let state, (_, kn) = spill_kn state kn in
     let cnt, x = temporary cnt in
-    let acc, pats = List.fold_left_map pattern_of_glb_pat (state, cnt) pats in
+    let acc, pats = List.fold_left_map (pattern_of_glb_pat env) (state, cnt) pats in
     let pats = pattern_conjunction pats in
     let pats = List.map (fun (pats, w) -> (PatOpn (x, pats), When (WhenOpn kn, x) :: w)) pats in
     acc, pats
 
   | GPatRef ({ cindx = Closed i }, ((_ :: _) as pats)) ->
-    let acc, pats = List.fold_left_map pattern_of_glb_pat acc pats in
+    let acc, pats = List.fold_left_map (pattern_of_glb_pat env) acc pats in
     let pats = pattern_conjunction pats in
     acc, List.map (fun (pats,w) -> PatCtor (i, pats), w) pats
 
@@ -284,7 +324,7 @@ let rec pattern_of_glb_pat (state, cnt as acc) = function
 
     Sadly this means or pattern compilation is exponential when string
     or open constructor patterns are involved. *)
-    let acc, pats = List.fold_left_map pattern_of_glb_pat acc pats in
+    let acc, pats = List.fold_left_map (pattern_of_glb_pat env) acc pats in
     let pats = List.flatten pats in
     let nowhen, withwhen = List.partition (fun (_,w) -> List.is_empty w) pats in
     let nowhen = List.map fst nowhen in
@@ -295,16 +335,16 @@ let rec pattern_of_glb_pat (state, cnt as acc) = function
     in
     acc, pats
 
-let pattern_of_glb_pat state pat =
-  let (state, _), pats = pattern_of_glb_pat (state, 0) pat in
+let pattern_of_glb_pat env state pat =
+  let (state, _), pats = pattern_of_glb_pat env (state, 0) pat in
   state, pats
 
 let rec push_user_names_of_glb_pat env pat =
   let self = push_user_names_of_glb_pat in
   match pat with
-  | GPatVar x -> push_user_name x Valexpr env
+  | GPatVar x -> fst (push_user_name x Valexpr env)
   | GPatAtm _ -> env
-  | GPatAs (p, x) -> self (push_user_name (Name x) Valexpr env) p
+  | GPatAs (p, x) -> self (fst @@ push_user_name (Name x) Valexpr env) p
   | GPatRef (_, pats) -> List.fold_left self env pats
   | GPatOr [] -> assert false
   | GPatOr (p::_) ->
@@ -373,8 +413,8 @@ let with_state {state} f x =
   v
 
 let with_env {env;state} f =
-  let env = f env in
-  {env;state}
+  let env, v = f env in
+  {env;state}, v
 
 let push_env f n v env = with_env env (fun env -> f n v env)
 
@@ -388,13 +428,19 @@ let precompiled_prim ml =
 
 let rec nontac_expr env ((cnt, nonvals) as acc) e = match e with
   | GTacAtm a -> acc, Atm a
-  | GTacVar x -> acc, Var (x, Id.Map.find_opt x env.env.user_bindings)
+  | GTacVar x ->
+    let x', info = match Id.Map.find_opt x env.env.user_bindings with
+      | Some (x,info) -> x, Some info
+      | None -> x, None
+    in
+    acc, Var (x', info)
   | GTacRef x ->
     let r = with_state env reference x in
     acc, Ref r
   | GTacFun (nas,e) ->
-    let e = tac_expr (push_env push_user_names nas Valexpr env) e in
-    acc, Fun (nas, e)
+    let env, nas' = push_env push_user_names nas Valexpr env in
+    let e = tac_expr env e in
+    acc, Fun (nas', e)
 
   | GTacCst (kn, i, l) when is_pure_ctor kn ->
     let acc, l = List.fold_left_map (nontac_expr env) acc l in
@@ -466,26 +512,29 @@ and tac_expr env e =
             end
           | _ -> assert false)
       in
-      let env =
-        List.fold_left (fun env (na, (bnd, _)) ->
-            push_env push_user_name (Name na) (Function {arity=List.length bnd}) env)
+      let env, nas' =
+        List.fold_left_map (fun env (na, (bnd, _)) ->
+            push_env push_user_id na (Function {arity=List.length bnd}) env)
           env lets
       in
-      let lets = List.map (fun (na, (bnd, e)) ->
-          let e = tac_expr (push_env push_user_names bnd Valexpr env) e in
-          (na, (bnd, e)))
+      let lets = List.map2 (fun (_, (bnd, e)) na' ->
+          let env, bnd = push_env push_user_names bnd Valexpr env in
+          let e = tac_expr env e in
+          (na', (bnd, e)))
           lets
+          nas'
       in
       let e = tac_expr env e in
       acc, LetRec (lets, e)
 
     (* XXX detect when a let can be nontac_expr *)
     | GTacLet (false, bnd, e) ->
-      let envbnd = push_env push_user_names (List.map fst bnd) Valexpr env in
-      let bnd = List.map (fun (na, e) ->
+      let envbnd, nas' = push_env push_user_names (List.map fst bnd) Valexpr env in
+      let bnd = List.map2 (fun (_, e) na' ->
           let e = tac_expr env e in
-          (na, e))
+          (na', e))
           bnd
+          nas'
       in
       let e = tac_expr envbnd e in
       acc, LetNoRec (bnd, e)
@@ -494,8 +543,9 @@ and tac_expr env e =
       let acc, e = nontac_expr env acc e in
       let esInt = Array.map (tac_expr env) esInt in
       let esBlk = Array.map (fun (nas, e) ->
-          let e = tac_expr (push_env push_user_names (Array.to_list nas) Valexpr env) e in
-          (nas, e))
+          let env, nas' = push_env push_user_names (Array.to_list nas) Valexpr env in
+          let e = tac_expr env e in
+          (Array.of_list nas', e))
           esBlk
       in
       let brs = branches_of_case esInt esBlk in
@@ -504,11 +554,10 @@ and tac_expr env e =
     | GTacWth {opn_match=e; opn_branch=brs; opn_default=def} ->
       let acc, e = nontac_expr env acc e in
       let brs = KNmap.map (fun (na,nas,e) ->
-          let env = push_env push_user_name na Valexpr
-              (push_env push_user_names (Array.to_list nas) Valexpr env)
-          in
+          let env, nas' = push_env push_user_names (Array.to_list nas) Valexpr env in
+          let env, na' = push_env push_user_name na Valexpr env in
           let e = tac_expr env e in
-          (na, nas, e))
+          (na', Array.of_list nas', e))
           brs
       in
       let brs = List.map (fun (kn, v) ->
@@ -518,8 +567,9 @@ and tac_expr env e =
       in
       let def =
         let na, def = def in
-        let def = tac_expr (push_env push_user_name na Valexpr env) def in
-        (na, def)
+        let env, na' = push_env push_user_name na Valexpr env in
+        let def = tac_expr env def in
+        (na', def)
       in
       let brs = branches_of_with brs def in
       acc, Match (e, brs)
@@ -527,8 +577,8 @@ and tac_expr env e =
     | GTacFullMatch (e, brs) ->
       let acc, e = nontac_expr env acc e in
       let brs = List.map (fun (pat, e) ->
-          let env = with_env env (fun env -> push_user_names_of_glb_pat env pat) in
-          let pat = with_state env pattern_of_glb_pat pat in
+          let env, () = with_env env (fun env -> push_user_names_of_glb_pat env pat, ()) in
+          let pat = with_state env (pattern_of_glb_pat env.env) pat in
           let e = tac_expr env e in
           (pat, e))
           brs
@@ -640,11 +690,11 @@ let pp_var x = function
 
 let rebind_interpreter_env ids =
   let ppenv =
-    Id.Map.fold (fun id info ppenv ->
+    Id.Map.fold (fun id (id',info) ppenv ->
         surround
           (str "Tac2interp.push_id" ++ spc() ++ ppenv ++ spc() ++
            str "(Id.of_string " ++ rawstr (Id.to_string id) ++ str ")" ++ spc() ++
-           pp_var id (Some info)))
+           pp_var id' (Some info)))
       ids
       (str "Tac2interp.empty_environment")
   in
