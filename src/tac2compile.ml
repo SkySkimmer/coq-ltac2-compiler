@@ -132,6 +132,27 @@ let empty_env = {
   rev_user_bindings = Id.Map.empty;
 }
 
+(* replace invalid bytes with 'x' (typically this means one unicode "φ" turns into "xx")
+   reference for valid idents: https://v2.ocaml.org/manual/lex.html#ident
+*)
+let ensure_valid_ocaml_id id =
+  let s = Id.to_string id in
+  let ok_start = match s.[0] with '_'|'a'..'z' -> true | _ -> false in
+  let ok_rest = function '_'|'\''|'a'..'z'|'A'..'Z'|'0'..'9' -> true | _ -> false in
+  if ok_start && String.for_all ok_rest s
+  then id
+  else
+    let s = Bytes.of_string s in
+    Bytes.iteri (fun i c ->
+        let ok = if Int.equal i 0 then ok_start else ok_rest c in
+        if not ok then match c with
+          | 'A'..'Z' -> (* special case for the first character *)
+            Bytes.set s i (Char.lowercase_ascii c)
+          | _ -> Bytes.set s i 'x')
+      s;
+    let s = Bytes.unsafe_to_string s in
+    Id.of_string s
+
 let push_user_id na info env =
   let na' = match Id.Map.find_opt na env.user_bindings with
     | Some (na',_) ->
@@ -143,8 +164,9 @@ let push_user_id na info env =
         || Id.Set.mem id keywords
         || Id.Map.mem id env.rev_user_bindings
       in
+      let na' = ensure_valid_ocaml_id na in
       (* even if mangle names is on we avoid mangling the ones we don't rename *)
-      let na' = if bad na then Namegen.next_ident_away_from na bad else na in
+      let na' = if bad na' then Namegen.next_ident_away_from na' bad else na' in
       na'
   in
   let env =
@@ -169,14 +191,8 @@ let spill_kn state kn =
   match KNmap.find_opt kn state.spill_kns with
   | Some s -> state, s
   | None ->
-    let s = Label.to_string (KerName.label kn) in
-    let s = match s.[0] with
-      | 'A'..'Z' ->
-        String.init (String.length s)
-          (fun i -> if i = 0 then Char.lowercase_ascii s.[0] else s.[i])
-      | _ -> s
-    in
-    let s = s ^ "_kn" ^ string_of_int state.spill_kn_cnt in
+    let s = ensure_valid_ocaml_id (Label.to_id (KerName.label kn)) in
+    let s = Id.to_string s ^ "_kn" ^ string_of_int state.spill_kn_cnt in
     let s' = SpilledKn.make (Id.of_string (s^"__")) in
     let state =
       { state with
