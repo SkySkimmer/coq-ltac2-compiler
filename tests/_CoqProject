@@ -7,3 +7,4 @@ tac2compile_test.v
 bug_10107.v
 minibench.v
 compiler_bug_4.v
+compiler_bug_6.v
