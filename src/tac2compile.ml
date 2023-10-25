@@ -139,19 +139,16 @@ let ensure_valid_ocaml_id id =
   let s = Id.to_string id in
   let ok_start = match s.[0] with '_'|'a'..'z' -> true | _ -> false in
   let ok_rest = function '_'|'\''|'a'..'z'|'A'..'Z'|'0'..'9' -> true | _ -> false in
-  if ok_start && String.for_all ok_rest s
-  then id
-  else
-    let s = Bytes.of_string s in
-    Bytes.iteri (fun i c ->
-        let ok = if Int.equal i 0 then ok_start else ok_rest c in
-        if not ok then match c with
-          | 'A'..'Z' -> (* special case for the first character *)
-            Bytes.set s i (Char.lowercase_ascii c)
-          | _ -> Bytes.set s i 'x')
-      s;
-    let s = Bytes.unsafe_to_string s in
-    Id.of_string s
+  let s = Bytes.of_string s in
+  Bytes.iteri (fun i c ->
+      let ok = if Int.equal i 0 then ok_start else ok_rest c in
+      if not ok then match c with
+        | 'A'..'Z' -> (* special case for the first character *)
+          Bytes.set s i (Char.lowercase_ascii c)
+        | _ -> Bytes.set s i 'x')
+    s;
+  let s = Bytes.unsafe_to_string s in
+  Id.of_string s
 
 let push_user_id na info env =
   let na' = match Id.Map.find_opt na env.user_bindings with
