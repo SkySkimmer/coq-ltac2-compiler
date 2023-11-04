@@ -1004,7 +1004,8 @@ let rec get_dependencies ((visited, skipped_mut, knl) as acc) kn =
         kndeps
         (KNset.add kn visited, skipped_mut, knl)
     in
-    (visited, skipped_mut, kn :: knl)
+    let knl = if data.gdata_mutable then knl else kn :: knl in
+    (visited, skipped_mut, knl)
 
 let warn_skipped_mut = CWarnings.create ~name:"tac2compile-skipped-mutable" ~category:CWarnings.CoreCategories.ltac2
     (fun skipped_mut ->
@@ -1121,6 +1122,7 @@ let compile ~recursive knl =
     if recursive then get_recursive_kns knl
     else knl
   in
+  debug Pp.(fun () -> str "Compiling constants " ++ prlist_with_sep spc (Tac2print.pr_tacref Id.Set.empty) knl);
   let file, ch, prefix = get_ml_filename () in
   let kns, exts, pp = pp_code recursive prefix knl in
   let fch = Format.formatter_of_out_channel ch in
