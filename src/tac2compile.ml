@@ -1121,6 +1121,7 @@ let compile ~recursive knl =
     if recursive then get_recursive_kns knl
     else knl
   in
+  debug Pp.(fun () -> str "Compiling constants " ++ prlist_with_sep spc (Tac2print.pr_tacref Id.Set.empty) knl);
   let file, ch, prefix = get_ml_filename () in
   let kns, exts, pp = pp_code recursive prefix knl in
   let fch = Format.formatter_of_out_channel ch in
