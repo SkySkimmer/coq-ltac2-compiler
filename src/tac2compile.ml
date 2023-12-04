@@ -747,8 +747,15 @@ let rec pp_nontac_expr = function
 (* produce a ocaml term of type valexpr tactic *)
 and pp_expr e =
   let { spilled_exprs = nonvals; head_expr = e; } = e in
-  if List.is_empty nonvals then pp_head_expr e
-  else surround (pp_binds Id.print pp_expr nonvals ++ pp_head_expr e)
+  let mainpp =
+    if List.is_empty nonvals then pp_head_expr e
+    else surround (pp_binds Id.print pp_expr nonvals ++ pp_head_expr e)
+  in
+  match e with
+  | Return _ | LetRec _ -> mainpp
+  | _ ->
+    (* monad-thunk nontrivial computations *)
+    surround (str "PV.tclUNIT () >>= fun () ->" ++ spc() ++ mainpp)
 
 and pp_head_expr = function
   | Return e -> surround (str "PV.tclUNIT" ++ spc() ++ pp_nontac_expr e)
@@ -845,36 +852,25 @@ and pp_head_expr = function
          hv 0 (prlist pp_branch brs ++ str "end"))
 
   | CtorMut (i, es) ->
-    (* Not sure if we actually need to thunk this one but let's be safe. *)
-    hv 1
-      (str "(PV.tclUNIT () >>= fun () ->" ++ spc() ++
-       str "PV.tclUNIT" ++ spc() ++
+    str "PV.tclUNIT" ++ spc() ++
+    surround
+      (str "ValBlk" ++ spc() ++
        surround
-         (str "ValBlk" ++ spc() ++
-          surround
-            (int i ++ str "," ++ spc() ++
-             hov 2
-               (str "[|" ++ pp_val_list es ++ str "|]"))) ++
-       str ")")
+         (int i ++ str "," ++ spc() ++
+          hov 2
+            (str "[|" ++ pp_val_list es ++ str "|]")))
 
   | PrjMut (e, i) ->
-    (* Don't forget to delay the side effect with a thunk! *)
-    hv 1
-      (str "(PV.tclUNIT () >>= fun () ->" ++ spc() ++
-       str "PV.tclUNIT" ++ spc() ++
-       surround
-         (str "Tac2ffi.Valexpr.field" ++ spc() ++ pp_nontac_expr e ++ spc() ++ int i) ++
-       str ")")
+    str "PV.tclUNIT" ++ spc() ++
+    surround
+      (str "Tac2ffi.Valexpr.field" ++ spc() ++ pp_nontac_expr e ++ spc() ++ int i)
 
   | Set (e1,i,e2) ->
-    (* Don't forget to delay the side effect with a thunk! *)
-    hv 1
-      (str "(PV.tclUNIT () >>= fun () ->" ++ spc() ++
-       h (str "let () = Tac2ffi.Valexpr.set_field" ++ spc() ++
-          pp_nontac_expr e1 ++ spc() ++ int i ++ spc() ++
-          pp_nontac_expr e2 ++ spc()) ++
-       str "in" ++ spc() ++
-       str "PV.tclUNIT (ValInt 0))")
+    h (str "let () = Tac2ffi.Valexpr.set_field" ++ spc() ++
+       pp_nontac_expr e1 ++ spc() ++ int i ++ spc() ++
+       pp_nontac_expr e2 ++ spc()) ++
+    str "in" ++ spc() ++
+    str "PV.tclUNIT (ValInt 0)"
 
   | Ext (ids, v) ->
     surround
