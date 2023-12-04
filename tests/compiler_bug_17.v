@@ -14,8 +14,20 @@ Ltac2 test2 () :=
   ltac1:(assert False) >
           [pop inner; pop outer|let outer := push () in pop outer].
 
-Ltac2 Compile test2.
+Ltac2 aux1 outer inner _ := pop inner; pop outer.
+Ltac2 aux2 _ := let outer := push() in pop outer.
+
+Ltac2 test3 :=
+  fun _ =>
+    let outer := push () in
+    let inner := push () in
+    let l :=
+      [aux1 outer inner; aux2],
+        None with t := fun _ => ltac1:(assert False) in
+                         dispatch0 t l.
+
+Ltac2 Compile test2 test3.
 
 Goal True /\ True.
-  test2 ().
+  test3 ().
 Abort.
