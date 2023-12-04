@@ -9,6 +9,7 @@ minibench.v
 compiler_bug_4.v
 compiler_bug_6.v
 compiler_bug_14.v
+compiler_bug_16.v
 compiler_bug_17.v
 
 -I src

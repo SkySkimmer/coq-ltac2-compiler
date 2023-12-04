@@ -258,6 +258,7 @@ type nontac_expr =
   | Opn of SpilledKn.t * nontac_expr list
   | PrjV of nontac_expr * int (* non-mutable projection *)
   | Prim of ml_tactic_name
+  | ValLetNoRec of (Name.t * nontac_expr) list * nontac_expr
 
 (** evaluates to a valexpr tactic *)
 and tac_expr_head =
@@ -439,6 +440,25 @@ let precompiled_prim ml =
   if ml.mltac_plugin <> "coq-core.plugins.ltac2" then None
   else CString.Map.find_opt ml.mltac_tactic Tac2compiledPrim.registered
 
+let rec is_nontac = function
+  | GTacAtm _ | GTacVar _ | GTacRef _ | GTacFun _
+  | GTacPrm _
+    -> true
+  | GTacCst (kn, _, l) ->
+    is_pure_ctor kn && List.for_all is_nontac l
+  | GTacOpn (_, l) -> List.for_all is_nontac l
+  | GTacPrj (typ, sube, i) ->
+    not (is_mutable_proj typ i) && is_nontac sube
+
+  | GTacLet (false, bnd, e) ->
+    List.for_all (fun (_, e) -> is_nontac e) bnd
+    && is_nontac e
+
+  | GTacApp _ | GTacLet (true, _, _) | GTacCse _
+  | GTacSet _ | GTacWth _ | GTacFullMatch _
+  | GTacExt _
+    -> false
+
 let rec nontac_expr env ((cnt, nonvals) as acc) e = match e with
   | GTacAtm a -> acc, Atm a
   | GTacVar x ->
@@ -474,6 +494,19 @@ let rec nontac_expr env ((cnt, nonvals) as acc) e = match e with
         let info = if arity = 0 then Valexpr else Function {arity} in
         acc, Ref (LocalKn ("Tac2compiledPrim."^ml.mltac_tactic, info))
     end
+
+  | GTacLet (false, bnd, sube) when is_nontac e ->
+    let envbnd, nas' = push_env push_user_names (List.map fst bnd) Valexpr env in
+    let bnd = List.map2 (fun (_, e) na' ->
+        let acc', e = nontac_expr env acc e in
+        assert (acc' == acc);
+        (na', e))
+        bnd
+        nas'
+    in
+    let acc', sube = nontac_expr envbnd acc sube in
+    assert (acc' == acc);
+    acc, ValLetNoRec (bnd, sube)
 
   | GTacApp _ | GTacLet _ | GTacCse _
   | GTacPrj _ | GTacSet _ | GTacWth _ | GTacFullMatch _
@@ -541,16 +574,21 @@ and tac_expr env e =
       acc, LetRec (lets, e)
 
     (* XXX detect when a let can be nontac_expr *)
-    | GTacLet (false, bnd, e) ->
-      let envbnd, nas' = push_env push_user_names (List.map fst bnd) Valexpr env in
-      let bnd = List.map2 (fun (_, e) na' ->
-          let e = tac_expr env e in
-          (na', e))
-          bnd
-          nas'
-      in
-      let e = tac_expr envbnd e in
-      acc, LetNoRec (bnd, e)
+    | GTacLet (false, bnd, sube) ->
+      if is_nontac e then
+        let acc', e = nontac_expr env acc e in
+        assert (acc == acc');
+        acc, Return e
+      else
+        let envbnd, nas' = push_env push_user_names (List.map fst bnd) Valexpr env in
+        let bnd = List.map2 (fun (_, e) na' ->
+            let e = tac_expr env e in
+            (na', e))
+            bnd
+            nas'
+        in
+        let sube = tac_expr envbnd sube in
+        acc, LetNoRec (bnd, sube)
 
     | GTacCse (e, _, esInt, esBlk) ->
       let acc, e = nontac_expr env acc e in
@@ -743,6 +781,20 @@ let rec pp_nontac_expr = function
           hov 2 (str "[|" ++ pp_val_list es ++ str "|]")))
   | Prim ml ->
     surround (str "Tac2env.interp_primitive" ++ spc() ++ pp_ml_name ml)
+  | ValLetNoRec (bnd, e) ->
+    let pr_one_let (na,e) = Name.print na ++ str " = " ++ spc() ++ pp_nontac_expr e in
+    let x1, rest = match bnd with
+      | [] -> assert false
+      | x :: rest -> x, rest
+    in
+    hv 2
+      (str "(" ++
+       hov 2 (str "let " ++ pr_one_let x1) ++ spc() ++
+       prlist (fun x -> hov 2 (str "and " ++ pr_one_let x) ++ spc()) rest ++
+       str "in" ++ spc() ++
+       pp_nontac_expr e ++
+       str ")")
+
 
 (* produce a ocaml term of type valexpr tactic *)
 and pp_expr e =
