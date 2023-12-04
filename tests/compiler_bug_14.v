@@ -4,6 +4,10 @@ Ltac2 test () := match mut with () => () end.
 
 From Ltac2Compiler Require Import Ltac2Compiler.
 
+Set Warnings "+tac2compile-skipped-mutable".
+Fail Ltac2 Compile test.
+
+Set Warnings "-tac2compile-skipped-mutable".
 Ltac2 Compile test.
 (*
 Dynlink error: execution of module initializers in the shared library failed:
