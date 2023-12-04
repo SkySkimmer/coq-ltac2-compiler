@@ -768,7 +768,7 @@ let rec pp_nontac_expr = function
     pp_mk_closure_val (List.length nas)
       (surround
          (h (str "fun" ++ pp_binders nas ++ str " ->") ++ spc() ++
-          pp_expr e))
+          str "PV.tclUNIT () >>= fun () ->" ++ spc() ++  pp_expr e))
   | Ctor (i, es) -> str "(ValBlk (" ++ int i ++ str ", [|" ++ pp_val_list es ++ str "|]))"
   | PrjV (e, i) ->
     surround
@@ -804,10 +804,10 @@ and pp_expr e =
     else surround (pp_binds Id.print pp_expr nonvals ++ pp_head_expr e)
   in
   match e with
-  | Return _ | LetRec _ -> mainpp
-  | _ ->
+  | Match _ | CtorMut _ | PrjMut _ | Set _ ->
     (* monad-thunk nontrivial computations *)
     surround (str "PV.tclUNIT () >>= fun () ->" ++ spc() ++ mainpp)
+  | App _ | Return _ | LetNoRec _ | LetRec _ | Ext _ -> mainpp
 
 and pp_head_expr = function
   | Return e -> surround (str "PV.tclUNIT" ++ spc() ++ pp_nontac_expr e)
@@ -943,7 +943,7 @@ let pp_one_constant (kn, knid, na, bnd, e) =
     | Fun (nas, e) ->
       hv 2
         (str "let " ++ h (str na ++ pp_binders nas) ++ str " =" ++ spc() ++
-         pp_expr e) ++ fnl() ++ fnl()
+         str "PV.tclUNIT () >>= fun () ->" ++ spc() ++ pp_expr e) ++ fnl() ++ fnl()
     | _ -> hv 2 (str "let " ++ str na ++ str " =" ++ spc() ++ pp_nontac_expr e) ++ fnl() ++ fnl()
   in
   let pp_set_compiled =
