@@ -1,0 +1,10 @@
+package "compiler_bug_17" (
+    directory = "."
+    version = "dev"
+    requires = "coq-core.plugins.ltac2"
+    archive(byte) = "compiler_bug_17_plugin.cma"
+    archive(native) = "compiler_bug_17_plugin.cmxa"
+    plugin(byte) = "compiler_bug_17_plugin.cma"
+    plugin(native) = "compiler_bug_17_plugin.cmxs"
+)
+directory = "."
