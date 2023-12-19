@@ -757,6 +757,11 @@ let pp_valexpr_of_bound pp = function
   | Valexpr -> pp
   | Function {arity} -> pp_mk_closure_val arity pp
 
+(* cf https://github.com/SkySkimmer/coq-ltac2-compiler/issues/17 *)
+let add_safety_thunk pp =
+  str "PV.tclUNIT () >>= fun () ->" ++ spc()
+  ++ pp
+
 (* produce a ocaml term of type valexpr *)
 let rec pp_nontac_expr = function
   | Atm (AtmInt i) | Ctor (i, []) -> str "(ValInt " ++ (if i >= 0 then int i else surround (int i)) ++ str")"
@@ -768,7 +773,7 @@ let rec pp_nontac_expr = function
     pp_mk_closure_val (List.length nas)
       (surround
          (h (str "fun" ++ pp_binders nas ++ str " ->") ++ spc() ++
-          str "PV.tclUNIT () >>= fun () ->" ++ spc() ++  pp_expr e))
+          add_safety_thunk (pp_expr e)))
   | Ctor (i, es) -> str "(ValBlk (" ++ int i ++ str ", [|" ++ pp_val_list es ++ str "|]))"
   | PrjV (e, i) ->
     surround
@@ -943,7 +948,7 @@ let pp_one_constant (kn, knid, na, bnd, e) =
     | Fun (nas, e) ->
       hv 2
         (str "let " ++ h (str na ++ pp_binders nas) ++ str " =" ++ spc() ++
-         str "PV.tclUNIT () >>= fun () ->" ++ spc() ++ pp_expr e) ++ fnl() ++ fnl()
+         add_safety_thunk (pp_expr e)) ++ fnl() ++ fnl()
     | _ -> hv 2 (str "let " ++ str na ++ str " =" ++ spc() ++ pp_nontac_expr e) ++ fnl() ++ fnl()
   in
   let pp_set_compiled =
