@@ -8,7 +8,7 @@
 (*         *     (see LICENSE file for the text of the license)         *)
 (************************************************************************)
 
-open Ltac2_plugin.Tac2ffi
+open Ltac2_plugin.Tac2val
 open Proofview
 
 val array_empty : valexpr -> valexpr tactic

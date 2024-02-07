@@ -60,7 +60,7 @@ let rawstr s = quote (str (String.escaped s))
    so instead of eg "Some 1" we have "ValBlk (0, [|ValInt 1|])"
 
    All other names are user names. As such to access coq-core values we must qualify them,
-   eg "Tac2ffi.mk_closure_val" etc
+   eg "Tac2val.mk_closure_val" etc
 *)
 
 let keywords =
@@ -223,7 +223,7 @@ let rec pp_arity n =
 
 let pp_arity n =
   assert (n >= 1);
-  str "Tac2ffi.(" ++ pp_arity n ++ str ")"
+  str "Tac2val.(" ++ pp_arity n ++ str ")"
 
 let rec pp_binders = function
   | [] -> mt()
@@ -732,7 +732,7 @@ let pp_when_clauses w =
 
 let pp_mk_closure_val arity f =
   surround
-    (str "Tac2ffi.mk_closure_val" ++ spc() ++
+    (str "Tac2val.mk_closure_val" ++ spc() ++
      pp_arity arity ++ spc() ++ f)
 
 let pp_var x = function
@@ -777,7 +777,7 @@ let rec pp_nontac_expr = function
   | Ctor (i, es) -> str "(ValBlk (" ++ int i ++ str ", [|" ++ pp_val_list es ++ str "|]))"
   | PrjV (e, i) ->
     surround
-      (str "Tac2ffi.Valexpr.field" ++ spc() ++ pp_nontac_expr e ++ spc() ++ int i)
+      (str "Tac2val.Valexpr.field" ++ spc() ++ pp_nontac_expr e ++ spc() ++ int i)
   | Opn (kn, es) ->
     surround
       (str "Tac2ffi.of_open" ++ spc() ++
@@ -837,7 +837,7 @@ and pp_head_expr = function
     begin match hinfo with
     | None ->
       surround
-        (str "Tac2ffi.apply_val" ++ spc() ++ pp_nontac_expr h ++ spc() ++
+        (str "Tac2val.apply_val" ++ spc() ++ pp_nontac_expr h ++ spc() ++
          surround (str "[" ++ pp_val_list args ++ str "]"))
     | Some x ->
       surround
@@ -920,10 +920,10 @@ and pp_head_expr = function
   | PrjMut (e, i) ->
     str "PV.tclUNIT" ++ spc() ++
     surround
-      (str "Tac2ffi.Valexpr.field" ++ spc() ++ pp_nontac_expr e ++ spc() ++ int i)
+      (str "Tac2val.Valexpr.field" ++ spc() ++ pp_nontac_expr e ++ spc() ++ int i)
 
   | Set (e1,i,e2) ->
-    h (str "let () = Tac2ffi.Valexpr.set_field" ++ spc() ++
+    h (str "let () = Tac2val.Valexpr.set_field" ++ spc() ++
        pp_nontac_expr e1 ++ spc() ++ int i ++ spc() ++
        pp_nontac_expr e2 ++ spc()) ++
     str "in" ++ spc() ++
@@ -969,7 +969,7 @@ let prelude prefix =
   str "open Names" ++ fnl() ++
   str "open Ltac2_plugin" ++ fnl() ++
   str "open Ltac2_compiler" ++ fnl() ++
-  str "open Tac2ffi" ++ fnl() ++
+  str "open Tac2val" ++ fnl() ++
   str "module PV = Proofview" ++ fnl() ++
   str "open PV.Notations" ++ fnl()
 

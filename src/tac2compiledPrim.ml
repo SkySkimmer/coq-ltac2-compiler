@@ -10,6 +10,7 @@
 
 open Names
 open Ltac2_plugin
+open Tac2val
 open Tac2ffi
 open Proofview.Notations
 
