@@ -11,6 +11,7 @@ compiler_bug_6.v
 compiler_bug_14.v
 compiler_bug_16.v
 compiler_bug_17.v
+compiler_bug_24.v
 
 -I src
 

@@ -43,9 +43,8 @@ let define name arity f =
   registered := (name,arity) :: !registered;
   f
 
-(* Adds a thunk *)
 let define0 name v =
-  define name 1 (fun (_:valexpr) -> v)
+  define name 0 v
 
 let define1 name r0 f =
   define name 1 (fun x0 -> f (repr_to r0 x0))
@@ -56,7 +55,7 @@ let define2 name r0 r1 f =
 let define3 name r0 r1 r2 f =
   define name 3 (fun x0 x1 x2 -> f (repr_to r0 x0) (repr_to r1 x1) (repr_to r2 x2))
 
-let array_empty = define0 "array_empty" (return (ValBlk (0, [||])))
+let array_empty = define0 "array_empty" (ValBlk (0, [||]))
 
 let array_make = define2 "array_make" int valexpr begin fun n x ->
   if n < 0 || n > Sys.max_array_length then throw err_outofbounds

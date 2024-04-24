@@ -11,7 +11,7 @@
 open Ltac2_plugin.Tac2val
 open Proofview
 
-val array_empty : valexpr -> valexpr tactic
+val array_empty : valexpr
 val array_make : valexpr -> valexpr -> valexpr tactic
 val array_length : valexpr -> valexpr tactic
 val array_set : valexpr -> valexpr -> valexpr -> valexpr tactic
