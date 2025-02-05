@@ -1141,7 +1141,7 @@ let call_compiler fml =
     include_dirs @
     ["-impl"; fml]
   in
-  let ocamlfind = Envars.ocamlfind() in
+  let ocamlfind = Boot.Env.ocamlfind() in
   debug Pp.(fun () -> str (ocamlfind ^ " " ^ String.concat " " args));
   try
     let res = CUnix.sys_command ocamlfind args in
