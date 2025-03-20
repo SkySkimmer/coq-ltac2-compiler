@@ -1110,11 +1110,9 @@ let error_compiler_failed e =
   CErrors.user_err msg
 
 let include_dirs () =
-  (* TODO make this work in -boot / dev shim mode *)
-  let open Boot.Env in
-  let env = init () in
+  let rocq = Findlib.package_directory "rocq-runtime" in
   (* engine for Proofview, kernel for Names *)
-  let core = List.map (fun x -> Path.to_string (native_cmi env x))
+  let core = List.map (fun x -> Filename.concat rocq x)
       [ "kernel"; "engine"; "plugins/ltac2" ]
   in
   let self = Findlib.package_directory "coq-ltac2-compiler" in
