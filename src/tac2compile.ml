@@ -973,7 +973,9 @@ let pp_one_constant (kn, knid, na, bnd, e) =
     | Fun (nas, e) ->
       hv 2
         (str "let " ++ h (str na ++ pp_binders nas) ++ str " =" ++ spc() ++
-         add_safety_thunk (pp_expr e)) ++ fnl() ++ fnl()
+         hov 2
+           (str "Tac2bt.with_frame (FrLtac " ++ SpilledKn.print knid ++ str ")"
+            ++ spc() ++ surround (add_safety_thunk @@ pp_expr e))) ++ fnl() ++ fnl()
     | _ -> hv 2 (str "let " ++ str na ++ str " =" ++ spc() ++ pp_nontac_expr e) ++ fnl() ++ fnl()
   in
   let pp_set_compiled =
